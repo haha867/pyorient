@@ -10,7 +10,7 @@ from ..otypes import OrientRecord, OrientRecordLink, OrientNode
 from ..hexdump import hexdump
 from ..constants import BOOLEAN, BYTE, BYTES, CHAR, FIELD_BOOLEAN, FIELD_BYTE, \
     FIELD_INT, FIELD_RECORD, FIELD_SHORT, FIELD_STRING, FIELD_TYPE_LINK, INT, \
-    LINK, LONG, RECORD, SHORT, STRING, STRINGS
+    LINK, LONG, RECORD, SHORT, STRING, STRINGS, FIELD_BYTES
 from ..utils import is_debug_active
 from ..orient import OrientSocket
 from ..serializations import OrientSerialization
@@ -29,6 +29,7 @@ class BaseMessage(object):
         # handles token auth
         self._auth_token = self._orientSocket.auth_token
         self._request_token = False
+        self._request_token = True
 
         self._header = []
         """:type : list of [str]"""
@@ -162,6 +163,8 @@ class BaseMessage(object):
             exception_class = b''
             exception_message = b''
 
+            if self._need_token:
+                token = self._decode_field( FIELD_BYTES )
             more = self._decode_field( FIELD_BOOLEAN )
 
             while more:

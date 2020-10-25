@@ -33,10 +33,19 @@ class CommandTestCase(unittest.TestCase):
             db_name, "admin", "admin", pyorient.DB_TYPE_GRAPH, ""
         )
 
+
+    def collect_class_data(self):
+        cls_data = self.client.command(
+            "select expand(classes) from metadata:schema"
+        )
+        return { k.oRecordData['name']:k.oRecordData for k in cls_data }
+
     def test_reserved_words(self):
 
         class_id1 = self.client.command("create class my_v_class extends V")[0]
+        class_id1 = self.collect_class_data()['my_v_class']['defaultClusterId']
         class_id2 = self.client.command("create class str extends E")[0]
+        class_id2 = self.collect_class_data()['str']['defaultClusterId']
         rec1 = {'@my_v_class': {'accommodation': 'house', 'work': 'office',
                                 'holiday': 'sea'}}
         rec2 = {'@my_v_class': {'accommodation': 'house', 'work2': 'office',
@@ -65,13 +74,12 @@ class CommandTestCase(unittest.TestCase):
         # print ( "%r" % x.holiday )
         # print ( "%r" % x._version )
 
-        assert result[0].oRecordData['rid'].get() == '11:0'
+        assert result[0].oRecordData['rid'].get() == f'{class_id1}:0' #11:0'
         assert result[0].rid.get_hash() == rec_position1._rid
         assert result[0].holiday == rec1['@my_v_class']['holiday']
         assert result[0].version != 0
 
-        assert result[1].rid.get() == '11:1'
-        assert result[1].rid.get_hash() == rec_position2._rid
+        assert result[1].rid.get() == f'{class_id1}:1' #11:1'
         assert result[1].rid.get_hash() == rec_position2._rid
         assert result[1].holiday == rec2['@my_v_class']['holiday']
         assert result[0].version != 0
@@ -98,16 +106,21 @@ class CommandTestCase(unittest.TestCase):
         except AttributeError:
             assert True
 
-        assert x[0].rid2.get_hash() == '#9:0', ("Failed to assert that "
-                                                "'#9:0' equals received "
-                                                "value: '%s'" % x[0]._rid2)
+#        assert x[0].rid2.get_hash() == '#9:0', ("Failed to assert that "
+#                                                "'#9:0' equals received "
+#                                                "value: '%s'" % x[0]._rid2)
+        hash_id = f"#{self.collect_class_data()['V']['defaultClusterId']}:0"
+        assert x[0].rid2.get_hash() == hash_id, ("Failed to assert that "
+                                                 f"{hash_id}' equals received "
+                                                 f"value: '{x[0].rid2}'")
         assert x[0].model == '1123'
         assert x[0].ciao == 1234
 
     def test_new_projection(self):
         rec = {'@Package': {'name': 'foo', 'version': '1.0.0', 'rid': 'this_is_fake'}}
-        x = self.client.record_create(9, rec)
-        assert x._rid == '#9:0'
+        v_cluster = self.collect_class_data()['V']['defaultClusterId']
+        x = self.client.record_create(v_cluster, rec)
+        assert x._rid == f'#{v_cluster}:0' #'#9:0'
         import re
         # this can differ from orientDB versions, so i use a regular expression
         assert re.match( '[0-1]', str( x._version ) )
@@ -130,10 +143,14 @@ class CommandTestCase(unittest.TestCase):
 
         # print( cluster_id[0] )
         # print (cluster_id[0]._in)
+        v_cluster = self.collect_class_data()['V']['defaultClusterId']
+        rid0 = f'#{v_cluster}:0'
         assert isinstance(edge_result[0]._in,
                           pyorient.OrientRecordLink)
-        assert edge_result[0]._in.get_hash() == "#9:0", \
-            "in is not equal to '#9:0': %r" % edge_result[0]._in.get_hash()
+#        assert edge_result[0]._in.get_hash() == "#9:0", \
+#            "in is not equal to '#9:0': %r" % edge_result[0]._in.get_hash()
+        assert edge_result[0]._in.get_hash() == rid0, \
+            f"in is not equal to {rid0} : {edge_result[0]._in.get_hash()}"
 
         # print (cluster_id[0]._out)
         assert isinstance(edge_result[0]._out, pyorient.OrientRecordLink)
@@ -159,12 +176,12 @@ class CommandTestCase(unittest.TestCase):
         cluster_id = self.client.command("create class followed_by extends E")
 
         cmd = (
-            "begin;"
-            "let a = create vertex fb set name = 'd1';"
-            "let c = select from fb limit 1;"
-            "let d = select from response limit 1;"
-            "let e = create edge from $c to $d;"
-            "commit;"
+            "BEGIN; "
+            "let a = create vertex fb set name = 'a1'; "
+            "let d = create vertex response set name = 'd1'; "
+            "let e = create edge from $a to $d set name = 'fb to response'; "
+            "COMMIT retry 100; "
+            "return $e; "
         )
 
         # assert isinstance(self.cluster_info, pyorient.Information)
@@ -177,6 +194,8 @@ class CommandTestCase(unittest.TestCase):
                 cluster_id = self.client.batch(cmd)
         else:
             cluster_id = self.client.batch(cmd)
+
+        print(f"created edge rid:{cluster_id[0]._rid}, name:{cluster_id[0].oRecordData['name']}!")
 
 
 

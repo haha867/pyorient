@@ -38,6 +38,8 @@ class CommandTestCase( unittest.TestCase ):
         self.class_id1 = \
             self.client.command( "create class my_v_class extends V" )[0]
 
+        self.class_id1 = self.collect_class_data()['my_v_class']['defaultClusterId']
+
     def test_boolean( self ):
         rec = self.client.command( 'create vertex v content {"abcdef":false,'
                                    '"qwerty":TRUE}' )
@@ -363,3 +365,9 @@ class CommandTestCase( unittest.TestCase ):
             assert isinstance(lon3, int), \
                 "type(lon3) is not equal to 'int': %r" \
                 % type(lon3)
+
+    def collect_class_data(self):
+        cls_data = self.client.command(
+            "select expand(classes) from metadata:schema"
+        )
+        return { k.oRecordData['name']:k.oRecordData for k in cls_data }

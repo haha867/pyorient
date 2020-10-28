@@ -304,7 +304,12 @@ class SerializationTestCase(unittest.TestCase):
             db_name, "admin", "admin", pyorient.DB_TYPE_GRAPH, ""
         )
 
-        cluster_id = DB.command("CREATE CLASS MyModel EXTENDS V")[0]
+        #cluster_id = DB.command("CREATE CLASS MyModel EXTENDS V")[0]
+        cluster_id = DB.command("CREATE CLASS MyModel EXTENDS V")
+        def collect_class_data():
+            cls_data = DB.command("select expand(classes) from metadata:schema")
+            return {k.oRecordData['name']: k.oRecordData for k in cls_data}
+        cluster_id = collect_class_data()['MyModel']['defaultClusterId']
 
         data0 = {'key': '"""'}
         DB.record_create(cluster_id, {'@MyModel': data0})
@@ -353,3 +358,4 @@ class SerializationTestCase(unittest.TestCase):
         rec5 = DB.record_load("#" + _n_rid + ":5")
         # assert rec5._class == "MyModel"
         assert rec5.oRecordData == data5
+

@@ -116,14 +116,14 @@ class DbOpenMessage(BaseMessage):
         for x in range(0, cluster_num):
             if self.get_protocol() < 24:
                 cluster = OrientCluster(
-                    self._decode_field(FIELD_STRING),
+                    self._decode_field(FIELD_STRING).decode( 'utf8' ),
                     self._decode_field(FIELD_SHORT),
-                    self._decode_field(FIELD_STRING),
+                    self._decode_field(FIELD_STRING).decode( 'utf8' ),
                     self._decode_field(FIELD_SHORT)
                 )
             else:
                 cluster = OrientCluster(
-                    self._decode_field(FIELD_STRING),
+                    self._decode_field(FIELD_STRING).decode( 'utf8' ),
                     self._decode_field(FIELD_SHORT)
                 )
             clusters.append(cluster)

@@ -43,7 +43,7 @@ class RawMessages_2_TestCase(unittest.TestCase):
 
         msg = DbOpenMessage( connection )
 
-        db_name = "GratefulDeadConcerts"
+        db_name = "GratefulDeadConcerts_test"
         cluster_info = msg.prepare(
             (db_name, "admin", "admin", DB_TYPE_DOCUMENT, "")
         ).send().fetch_response()
@@ -53,12 +53,17 @@ class RawMessages_2_TestCase(unittest.TestCase):
             assert record is not []
             assert record._rid is not None  # assert no exception
 
-        req_msg = RecordLoadMessage( connection )
+        defaultClusterId = CommandMessage(connection).prepare( (QUERY_CMD,\
+                                                 "select defaultClusterId from " 
+                                                 "( select expand(classes) from metadata:schema ) " 
+                                                 " where name = 'followed_by'"))\
+                                                    .send().fetch_response()[0].oRecordData['defaultClusterId']
 
-        res = req_msg.prepare( [ "#11:0", "*:2", _test_callback ] ) \
+        req_msg = RecordLoadMessage( connection )
+        res = req_msg.prepare( [ f"#{defaultClusterId}:0", "*:2", _test_callback ] ) \
             .send().fetch_response()
 
-        assert res._rid == "#11:0"
+        assert res._rid == f"#{defaultClusterId}:0"
         assert res._class == 'followed_by'
         assert res._in != 0
         assert res._out != 0
@@ -155,6 +160,9 @@ class RawMessages_2_TestCase(unittest.TestCase):
             cluster = create_class.prepare((QUERY_CMD, "create class my_class "
                                                        "extends V"))\
                 .send().fetch_response()[0]
+            cluster = CommandMessage(connection)\
+                .prepare( (QUERY_CMD, "select defaultClusterId from ( select expand(classes) from metadata:schema ) where name = 'my_class'") )\
+                .send().fetch_response()[0].oRecordData['defaultClusterId']
         except PyOrientCommandException:
             # class my_class already exists
             pass
@@ -194,7 +202,7 @@ class RawMessages_2_TestCase(unittest.TestCase):
         print("%r" % res[0].lavoro)
         print("%r" % res[0].vacanza)
 
-        assert res[0]._rid == '#11:0'
+        assert res[0]._rid ==  f'#{cluster}:0'  #'#11:0'
         # assert res[0]._class == 'my_class'
         assert res[0]._version >= 0
         assert res[0].alloggio == 'albergo'
@@ -228,7 +236,7 @@ class RawMessages_2_TestCase(unittest.TestCase):
         msg = DbExistsMessage( connection )
         exists = msg.prepare( [db_name] ).send().fetch_response()
 
-        print("Before %r" % exists)
+        print(f"Before {exists}")
         try:
             ( DbDropMessage( connection ) ).prepare([db_name]) \
                 .send().fetch_response()
@@ -247,9 +255,18 @@ class RawMessages_2_TestCase(unittest.TestCase):
 
         assert len(cluster_info) != 0
 
+        try:
+            tmp_cluster = CommandMessage(connection).prepare((QUERY_CMD, "create cluster tmp_cluster"))\
+                .send().fetch_response()[0]
+        except PyOrientCommandException as e:
+            print(f'{e}')
+            # cluster tmp_cluster already exists
+            pass
+
+
         rec = { 'alloggio': 'casa', 'lavoro': 'ufficio', 'vacanza': 'mare' }
         rec_position = ( RecordCreateMessage(connection) )\
-            .prepare( ( 1, rec ) )\
+            .prepare( ( tmp_cluster, rec ) )\
             .send().fetch_response()
 
         print("New Rec Position: %s" % rec_position._rid)
@@ -261,7 +278,8 @@ class RawMessages_2_TestCase(unittest.TestCase):
             .send().fetch_response()
 
         import re
-        assert re.match( '#1:[0-9]', res[0]._rid )
+        #assert re.match( '#1:[0-9]', res[0]._rid )
+        assert re.match( f'#{tmp_cluster}:[0-9]', res[0]._rid )
         assert res[0]._class is None
         assert res[0]._version >= 0
         assert res[0].alloggio == 'casa'
@@ -271,14 +289,14 @@ class RawMessages_2_TestCase(unittest.TestCase):
         ######################## Delete Rid
 
         del_msg = (RecordDeleteMessage(connection))
-        deletion = del_msg.prepare( ( 1, rec_position._rid ) )\
+        deletion = del_msg.prepare( ( tmp_cluster, rec_position._rid ) )\
             .send().fetch_response()
 
         assert deletion is True
 
         # now try a failure in deletion for wrong rid
         del_msg = (RecordDeleteMessage(connection))
-        deletion = del_msg.prepare( ( 1, 11111 ) )\
+        deletion = del_msg.prepare( ( tmp_cluster, 11111 ) )\
             .send().fetch_response()
 
         assert deletion is False

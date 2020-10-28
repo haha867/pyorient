@@ -119,37 +119,48 @@ class RawMessages_5_TestCase(unittest.TestCase):
             pass
 
         # ##################
+        try:
+            tmp_cluster = CommandMessage(connection).prepare((QUERY_CMD, "create cluster tmp_cluster"))\
+                .send().fetch_response()[0]
+        except PyOrientCommandException as e:
+            print(f'{e}')
+            # cluster tmp_cluster already exists
+            pass
 
         # execute real create
         rec0 = { 'alloggio': 'baita', 'lavoro': 'no', 'vacanza': 'lago' }
         real_record1 = ( RecordCreateMessage(connection) )\
-            .prepare( ( 3, rec0 ) )\
+            .prepare( ( tmp_cluster, rec0 ) )\
             .send().fetch_response()
 
         #######################
         # prepare for an update
         rec3 = { 'alloggio': 'ciao', 'lavoro': 'ciao2', 'vacanza': 'ciao3' }
         temp_update_real_rec = ( RecordUpdateMessage(connection) )\
-            .prepare( ( 3, real_record1._rid, rec3, real_record1._version ) )
+            .prepare( ( tmp_cluster, real_record1._rid, rec3, real_record1._version ) )
 
         # prepare transaction
         rec1 = { 'alloggio': 'casa', 'lavoro': 'ufficio', 'vacanza': 'mare' }
         temp_record1 = ( RecordCreateMessage(connection) )\
-            .prepare( ( -1, rec1 ) )
+            .prepare( ( tmp_cluster, rec1) )\
+            #.send().fetch_response()
+            #.prepare( ( -1, rec1 ) )
 
         rec2 = { 'alloggio': 'baita', 'lavoro': 'no', 'vacanza': 'lago' }
         temp_record2 = ( RecordCreateMessage(connection) )\
-            .prepare( ( -1, rec2 ) )
+            .prepare(( tmp_cluster, rec2))
+            #.prepare( ( -1, rec2 ) )
 
         delete_real_rec = RecordDeleteMessage(connection)
-        delete_real_rec.prepare( ( 3, real_record1._rid ) )
+        delete_real_rec.prepare( ( tmp_cluster, real_record1._rid ) )
         #######################
 
         # create another real record
         rec = { 'alloggio': 'bim', 'lavoro': 'bum', 'vacanza': 'bam' }
         real_record2 = ( RecordCreateMessage(connection) )\
-            .prepare( ( 3, rec ) )\
+            .prepare( ( tmp_cluster, rec ) )\
             .send().fetch_response()
+            #.prepare((-1, rec)) \
 
         tx = TxCommitMessage(connection)
         tx.begin()
@@ -165,12 +176,14 @@ class RawMessages_5_TestCase(unittest.TestCase):
         # in OrientDB version 2.2.9 transactions are executed in reverse order ( list pop )
         # in previous versions, instead, transaction are executed in crescent order ( list shift )
         assert len(res) == 2
-        if cluster_info[ 0 ].major >= 2 and cluster_info[ 0 ].minor >= 2 and cluster_info[ 0 ].build < 9:
-            assert res["#3:2"].vacanza == 'mare'
-            assert res["#3:3"].vacanza == 'lago'
+        current_version = cluster_info[ 0 ].major * 100 + cluster_info[ 0 ].minor * 10
+        #if cluster_info[ 0 ].major >= 2 and cluster_info[ 0 ].minor >= 2 and cluster_info[ 0 ].build < 9:
+        if current_version == 220 and cluster_info[0].build < 9:
+            assert res[f"#{tmp_cluster}:2"].vacanza == 'mare'
+            assert res[f"#{tmp_cluster}:3"].vacanza == 'lago'
         else:
-            assert res["#3:2"].vacanza == 'lago'
-            assert res["#3:3"].vacanza == 'mare'
+            assert res[f"#{tmp_cluster}:2"].vacanza == 'lago'
+            assert res[f"#{tmp_cluster}:3"].vacanza == 'mare'
 
         sid = ( ConnectMessage( connection ) ).prepare( ("root", "root") )\
             .send().fetch_response()

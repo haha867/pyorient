@@ -441,9 +441,13 @@ class _TXCommitMessage(BaseMessage):
             ))
         elif isinstance(operation, RecordCreateMessage):
             o_record_enc = self.get_serializer().encode(getattr(operation, "_record_content"))
+            try:
+                cluster_id = int(getattr(operation, "_cluster_id"))
+            except Exception:
+                cluster_id = int(-1)
             self._operation_stack.append((
                 ( FIELD_BYTE, chr(3) ),
-                ( FIELD_SHORT, int(-1) ),
+                ( FIELD_SHORT, cluster_id ),
                 ( FIELD_LONG, int(self._temp_cluster_position_seq) ),
                 ( FIELD_BYTE, getattr(operation, "_record_type") ),
                 ( FIELD_STRING, o_record_enc ),

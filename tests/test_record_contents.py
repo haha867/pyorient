@@ -72,12 +72,16 @@ class CommandTestCase( unittest.TestCase ):
         rec = self.client.command( 'create vertex v content {"a":false,'
                                    '"q":TRUE}' )
 
+        defaultClusterId = self.client.\
+                        command("select defaultClusterId from ( select expand(classes) from metadata:schema ) where name = 'V'")\
+                        [0].oRecordData['defaultClusterId']
+
         assert rec[0].a is False
         assert rec[0].q is True
         import re
         # this can differ from orientDB versions, so i use a regular expression
         assert re.match( '[0-1]', str( rec[0]._version ) )
-        assert rec[0]._rid == '#9:0'
+        assert rec[0]._rid == f'#{defaultClusterId}:0' #'#9:0'
 
         rec = {'a': 1, 'b': 2, 'c': 3}
         rec_position = self.client.record_create( 3, rec )
@@ -310,8 +314,10 @@ class CommandTestCase( unittest.TestCase ):
 
         record = self.client.command("CREATE VERTEX V CONTENT " +
                                      json.dumps(test_data))[0]
-
-        assert record._rid == '#9:0'
+        defaultClusterId = self.client.\
+                        command("select defaultClusterId from ( select expand(classes) from metadata:schema ) where name = 'V'")\
+                        [0].oRecordData['defaultClusterId']
+        assert record._rid == f'#{defaultClusterId}:0' #'#9:0'
         assert record.oRecordData['scenario'] == 'a "quote" follows'
 
     def test_db_list(self):

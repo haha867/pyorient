@@ -199,5 +199,50 @@ class CommandTestCase(unittest.TestCase):
 
 
 
+class CommandPrepareCase(unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super(CommandPrepareCase, self).__init__(*args, **kwargs)
+        self.client = None
 
-# x = CommandTestCase('test_sql_batch_2').run()
+    def setUp(self):
+
+        self.client = pyorient.OrientDB("localhost", 2424)
+        self.client.connect("root", "root")
+
+        db_name = "GratefulDeadConcerts_test"
+        try:
+            self.client.db_drop(db_name)
+        except pyorient.PyOrientCommandException as e:
+            print(e)
+        finally:
+            db = self.client.db_create(db_name, pyorient.DB_TYPE_GRAPH)
+
+        self.cluster_info = self.client.db_open(
+            db_name, "admin", "admin", pyorient.DB_TYPE_GRAPH, ""
+        )
+
+    def test_execute_sql_batch(self):
+
+        cluster_id = self.client.command("create class person extends V")
+        cluster_id = self.client.command("create class followed_by extends E")
+
+        cmd = (
+            "BEGIN; "
+            "let a = create vertex person set role = 'pa'; "
+            "let b = create vertex person set name = 'son'; "
+            "let c = create edge followed_by from $a to $b set memo = 'pa to son'; "
+            "let d = create edge followed_by from $b to $a set memo = 'son to pa'; "
+            "COMMIT retry 100; "
+        )
+
+        # assert isinstance(self.cluster_info, pyorient.Information)
+
+        # The preceding batch script create an exception
+        # in OrientDB newest than 2.1
+        if self.client.version.major == 2 and \
+                self.client.version.minor >= 1:
+            with self.assertRaises( pyorient.PyOrientCommandException ):
+                cluster_id = self.client.batch(cmd)
+        else:
+            cluster_id = self.client.batch(cmd)
+

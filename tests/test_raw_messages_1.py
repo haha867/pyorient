@@ -351,7 +351,7 @@ class RawMessages_1_TestCase(unittest.TestCase):
 
         msg = DbOpenMessage( connection )
 
-        db_name = "GratefulDeadConcerts"
+        db_name = "GratefulDeadConcerts_test"
         cluster_info = msg.prepare(
             (db_name, "admin", "admin", DB_TYPE_DOCUMENT, "")
         ).send().fetch_response()

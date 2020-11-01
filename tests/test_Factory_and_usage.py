@@ -125,35 +125,43 @@ class CommandTestCase(unittest.TestCase):
         ).send().fetch_response()
 
         #######################################
+        try:
+            tmp_cluster = factory.get_message(pyorient.COMMAND)\
+                .prepare( ( pyorient.QUERY_CMD, "create cluster tmp_cluster") )\
+                .send().fetch_response()[0]
+        except pyorient.PyOrientCommandException as e:
+            print(f'{e}')
+            # cluster tmp_cluster already exists
+            pass
 
         # execute real create
         rec = { 'alloggio': 'baita', 'lavoro': 'no', 'vacanza': 'lago' }
         real_create_1 = ( factory.get_message(pyorient.RECORD_CREATE) )\
-            .prepare( ( 3, rec ) )\
+            .prepare( ( tmp_cluster, rec ) )\
             .send().fetch_response()
 
         # create another real record
         rec = { 'alloggio': 'baita', 'lavoro': 'no', 'vacanza': 'deserto' }
         real_create_2 = ( factory.get_message(pyorient.RECORD_CREATE) )\
-            .prepare( ( 3, rec ) )\
+            .prepare( ( tmp_cluster, rec ) )\
             .send().fetch_response()
 
         # prepare for an update
         rec3 = { 'alloggio': 'albergo', 'lavoro': 'ufficio', 'vacanza': 'montagna' }
         tx_update_1 = ( factory.get_message(pyorient.RECORD_UPDATE) )\
-            .prepare( ( 3, real_create_1._rid, rec3, real_create_1._version ) )
+            .prepare( ( tmp_cluster , real_create_1._rid, rec3, real_create_1._version ) )
 
         # prepare transaction
         rec1 = { 'alloggio': 'casa', 'lavoro': 'ufficio', 'vacanza': 'mare' }
         tx_create_1 = ( factory.get_message(pyorient.RECORD_CREATE) )\
-            .prepare( ( -1, rec1 ) )
+            .prepare( ( tmp_cluster, rec1 ) ) #.prepare((-1, rec1))
 
         rec2 = { 'alloggio': 'baita', 'lavoro': 'no', 'vacanza': 'lago' }
         tx_create_2 = ( factory.get_message(pyorient.RECORD_CREATE) )\
-            .prepare( ( -1, rec2 ) )
+            .prepare( ( tmp_cluster, rec2 ) ) #.prepare( ( -1, rec2 ) )
 
         tx_delete_1_for_real_create_2 = ( factory.get_message(pyorient.RECORD_DELETE) )
-        tx_delete_1_for_real_create_2.prepare( ( 3, real_create_2._rid ) )
+        tx_delete_1_for_real_create_2.prepare( ( tmp_cluster, real_create_2._rid ) ) #prepare( ( 3, real_create_2._rid ) )
 
         tx = ( factory.get_message(pyorient.TX_COMMIT) )
         tx.begin()
@@ -170,18 +178,21 @@ class CommandTestCase(unittest.TestCase):
         # in OrientDB version 2.2.9 transactions are executed in reverse order ( list pop )
         # in previous versions, instead, transaction are executed in crescent order ( list shift )
         assert len(res) == 4
-        if cluster_info[ 0 ].major >= 2 \
-                and cluster_info[ 0 ].minor >= 2 \
-                and cluster_info[ 0 ].build < 9:
-            assert res["#3:0"].vacanza == 'montagna'
-            assert res["#3:2"].vacanza == 'mare'
-            assert res["#3:3"].vacanza == 'mare'
-            assert res["#3:4"].vacanza == 'lago'
+        vrs = cluster_info[0].major * 100 + cluster_info[0].minor * 10
+        #if cluster_info[ 0 ].major >= 2 \
+        #        and cluster_info[ 0 ].minor >= 2 \
+        #        and cluster_info[ 0 ].build < 9:
+        if vrs == 220 \
+                and cluster_info[0].build < 9:
+            assert res[f"#{tmp_cluster}:0"].vacanza == 'montagna'
+            assert res[f"#{tmp_cluster}:2"].vacanza == 'mare'
+            assert res[f"#{tmp_cluster}:3"].vacanza == 'mare'
+            assert res[f"#{tmp_cluster}:4"].vacanza == 'lago'
         else:
-            assert res["#3:0"].vacanza == 'montagna'
-            assert res["#3:2"].vacanza == 'lago'
-            assert res["#3:3"].vacanza == 'mare'
-            assert res["#3:4"].vacanza == 'mare'
+            assert res[f"#{tmp_cluster}:0"].vacanza == 'montagna'
+            assert res[f"#{tmp_cluster}:2"].vacanza == 'lago'
+            assert res[f"#{tmp_cluster}:3"].vacanza == 'mare'
+            assert res[f"#{tmp_cluster}:4"].vacanza == 'mare'
 
         sid = ( factory.get_message(pyorient.CONNECT) ).prepare( ("root", "root") )\
             .send().fetch_response()
@@ -238,6 +249,12 @@ class CommandTestCase(unittest.TestCase):
 
 
         cluster = create_class.send().fetch_response()
+        cluster = factory.get_message(pyorient.COMMAND).prepare( (pyorient.QUERY_CMD,\
+                                                 "select clusterIds from " 
+                                                 "( select expand(classes) from metadata:schema ) " 
+                                                 " where name = 'c_test'"))\
+                                                    .send().fetch_response()[0].oRecordData['clusterIds']
+
         rec1 = ins_msg1.send().fetch_response()
         rec2 = ins_msg2.send().fetch_response()
         rec3 = ins_msg3.send().fetch_response()

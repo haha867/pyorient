@@ -37,13 +37,50 @@ if os.path.realpath('.') not in sys.path:
 class DataClusterTestCase(unittest.TestCase):
     """ Command Test Case """
 
+    def setUp(self):
+        connection = OrientSocket('localhost', 2424)
+
+        from pyorient.messages.connection import ConnectMessage
+        from pyorient.exceptions import PyOrientCommandException
+        from pyorient.constants import DB_TYPE_DOCUMENT, STORAGE_TYPE_MEMORY
+        from pyorient.messages.database import DbDropMessage, DbExistsMessage, DbCreateMessage
+
+        conn_msg = ConnectMessage(connection)
+        assert connection.protocol != -1
+
+        session_id = conn_msg.prepare(("root", "root")) \
+            .send().fetch_response()
+
+        print("Sid: %s" % session_id)
+        assert session_id == connection.session_id
+        assert session_id != -1
+
+        db_name = "test_db_cluster"
+
+        msg = DbExistsMessage(connection)
+        exists = msg.prepare([db_name]).send().fetch_response()
+
+        print(f"Before {exists}")
+        try:
+            (DbDropMessage(connection)).prepare([db_name]) \
+                .send().fetch_response()
+            assert True
+        except PyOrientCommandException as e:
+            print(str(e))
+        finally:
+            (DbCreateMessage(connection)).prepare(
+                (db_name, DB_TYPE_DOCUMENT, STORAGE_TYPE_MEMORY)
+            ).send().fetch_response()
+
+
     def test_data_cluster_add_drop(self):
         import random
 
         connection = OrientSocket('localhost', 2424)
 
-        db_name = 'GratefulDeadConcerts'
         db_open = DbOpenMessage( connection )
+
+        db_name = "test_db_cluster"
         clusters = db_open.prepare( ( db_name, 'admin', 'admin' ) ) \
             .send().fetch_response()
 

@@ -177,10 +177,14 @@ class CommandTestCase(unittest.TestCase):
         )
 
         #######################################
+        try:
+            tmp_cluster = client.data_cluster_add("tmp_cluster") #client.command("crate cluster tmp_cluster")
+        except pyorient.PyOrientCommandException as e:
+            print(str(e))
 
         # execute real create
         rec = { 'alloggio': 'baita', 'lavoro': 'no', 'vacanza': 'lago' }
-        rec_position = client.record_create( 3, rec )
+        rec_position = client.record_create( tmp_cluster, rec )
 
         #  START TRANSACTION
         print("debug breakpoint line")
@@ -189,17 +193,17 @@ class CommandTestCase(unittest.TestCase):
 
         # prepare for an update
         rec3 = { 'alloggio': 'albergo', 'lavoro': 'ufficio', 'vacanza': 'montagna' }
-        tx_update1 = client.record_update( 3, rec_position._rid, rec3,
+        tx_update1 = client.record_update( tmp_cluster, rec_position._rid, rec3,
                                   rec_position._version )
 
         # prepare transaction
         rec1 = { 'alloggio': 'casa', 'lavoro': 'ufficio', 'vacanza': 'mare' }
-        tx_create_1 = client.record_create( -1, rec1 )
+        tx_create_1 = client.record_create( tmp_cluster, rec1 )
 
         rec2 = { 'alloggio': 'baita', 'lavoro': 'no', 'vacanza': 'lago' }
-        tx_create_2 = client.record_create( -1, rec2 )
+        tx_create_2 = client.record_create( tmp_cluster, rec2 )
 
-        tx_delete_1 = client.record_delete( 3, rec_position._rid )
+        tx_delete_1 = client.record_delete( tmp_cluster, rec_position._rid )
 
         tx.attach( tx_create_1 )
         tx.attach( tx_create_1 )
@@ -214,14 +218,16 @@ class CommandTestCase(unittest.TestCase):
         # in OrientDB version 2.2.9 transactions are executed in reverse order ( list pop )
         # in previous versions, instead, transaction are executed in crescent order ( list shift )
         assert len(res) == 3
-        if client.version.major >= 2 and client.version.minor >= 2 and client.version.build < 9:
-            assert res["#3:1"].vacanza == 'mare'
-            assert res["#3:2"].vacanza == 'mare'
-            assert res["#3:3"].vacanza == 'lago'
+        req_ver = client.version.major * 100 + client.version.minor * 10
+        #if client.version.major >= 2 and client.version.minor >= 2 and client.version.build < 9:
+        if req_ver == 220 and client.version.build < 9:
+            assert res[f"#{tmp_cluster}:1"].vacanza == 'mare'
+            assert res[f"#{tmp_cluster}:2"].vacanza == 'mare'
+            assert res[f"#{tmp_cluster}:3"].vacanza == 'lago'
         else:
-            assert res["#3:1"].vacanza == 'lago'
-            assert res["#3:2"].vacanza == 'mare'
-            assert res["#3:3"].vacanza == 'mare'
+            assert res[f"#{tmp_cluster}:1"].vacanza == 'lago'
+            assert res[f"#{tmp_cluster}:2"].vacanza == 'mare'
+            assert res[f"#{tmp_cluster}:3"].vacanza == 'mare'
 
         client.connect( "root", "root" )
         client.db_drop( db_name, pyorient.STORAGE_TYPE_MEMORY )
@@ -250,6 +256,8 @@ class CommandTestCase(unittest.TestCase):
 
         class_id1 = client.command( "create class my_v_class extends V" )[0]
         class_id2 = client.command( "create class my_e_class extends E" )[0]
+        class_id1 = client.command( "select defaultClusterId from ( select expand(classes) from metadata:schema ) where name = 'my_v_class'" )[0].defaultClusterId
+        class_id2 = client.command( "select defaultClusterId from ( select expand(classes) from metadata:schema ) where name = 'my_e_class'" )[0].defaultClusterId
         rec1 = { '@my_v_class': { 'accommodation': 'house', 'work': 'office', 'holiday': 'sea' } }
         rec2 = { '@my_v_class': { 'accommodation': 'house', 'work2': 'office', 'holiday': 'sea3' } }
         rec_position1 = client.record_create(class_id1, rec1)

@@ -72,10 +72,14 @@ class LinkSetTestCase(unittest.TestCase):
             )
 
     def test_oUser(self):
-        res = self.client.query("select from oUser")
+        res = self.client.query("select from OUser")
+        try:
+            cluster_id = self.client.command( "select defaultClusterId from ( select expand(classes) from metadata:schema ) where name = 'ORole'" )[0].defaultClusterId
+        except pyorient.PyOrientCommandException as e:
+            print(e)
         assert len(res) == 3
         for user in res:
-            assert user.oRecordData['roles'][0].clusterID == '4'
+            assert user.oRecordData['roles'][0].clusterID == f'{cluster_id}' #'4'
 
     def testEmbed(self):
 
@@ -156,18 +160,23 @@ class LinkSetTestCase(unittest.TestCase):
                                        pyorient.STORAGE_TYPE_MEMORY)
             pass
 
+        try:
+            cluster_id = DB.command( "select defaultClusterId from ( select expand(classes) from metadata:schema ) where name = 'V'" )[0].defaultClusterId
+        except pyorient.PyOrientCommandException as e:
+            print(e)
+
         DB.command( "insert into V set key1 = 'row0'" )
         DB.command( "insert into V set key1 = 'row1'" )
         DB.command( "insert into V set key1 = 'row2'" )
         DB.command( "insert into V set key1 = 'row3'" )
 
-        o1 = pyorient.OrientRecordLink( "9:0" )
-        o2 = pyorient.OrientRecordLink( "9:1" )
-        o3 = pyorient.OrientRecordLink( "9:2" )
-        o4 = pyorient.OrientRecordLink( "9:3" )
+        o1 = pyorient.OrientRecordLink(f"{cluster_id}:0") #( "9:0" )
+        o2 = pyorient.OrientRecordLink(f"{cluster_id}:1") #( "9:1" )
+        o3 = pyorient.OrientRecordLink(f"{cluster_id}:2") #( "9:2" )
+        o4 = pyorient.OrientRecordLink(f"{cluster_id}:3") #( "9:3" )
         lList = [ o1, o2, o3, o4 ]
 
-        rec = DB.record_create( 9, { 'test': lList, 'key1': 'row4' } )  # 9:4
+        rec = DB.record_create( cluster_id, { 'test': lList, 'key1': 'row4' } )  # 9:4
 
         if self.client.version.major > 1:
             _rec = DB.record_load( rec._rid )
